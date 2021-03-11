@@ -15,8 +15,10 @@ mkdir -p \
     "${WORKDIR}/bam/filtered/dedup" \
     "${WORKDIR}/bam/filtered/split_n_cigar" \
     "${WORKDIR}/bam/filtered/qc_recal" \
+    "${WORKDIR}/mutation/vcf/raw" \
     "${WORKDIR}/mutation/vcf/filtered" \
-    "${WORKDIR}/mutation/vcf/annotation"
+    "${WORKDIR}/mutation/vcf/annotated" \
+    "${WORKDIR}/mutation/annotation"
 
 # Prepare reference dictionary and index files
 # https://gatk.broadinstitute.org/hc/en-us/articles/360035531652-FASTA-Reference-genome-format
@@ -136,7 +138,7 @@ for sample_ID in $sample_IDs; do
         gatk --java-options "-Xms6g -XX:GCTimeLimit=50 -XX:GCHeapFreeLimit=10" HaplotypeCaller \
             -R "${WORKDIR}/annotation/GRCh38.primary_assembly.genome.fa" \
             -I "${WORKDIR}/bam/filtered/qc_recal/${sample_ID}.bam" \
-            -O "${WORKDIR}/mutation/vcf/${sample_ID}.${i}.vcf.gz" \
+            -O "${WORKDIR}/mutation/vcf/raw/${sample_ID}.${i}.vcf.gz" \
             -L "${WORKDIR}/annotation/exon_intervals/${i}.interval_list" \
             --dont-use-soft-clipped-bases \
             --standard-min-confidence-threshold-for-calling 20 \
@@ -145,21 +147,21 @@ for sample_ID in $sample_IDs; do
     wait
 
     # Merge the per-interval VCFs for the same sample
-    touch "${WORKDIR}/mutation/vcf/${sample_ID}.list"
+    touch "${WORKDIR}/mutation/vcf/raw/${sample_ID}.list"
     for i in {1..20}; do
-        echo "${WORKDIR}/mutation/vcf/${sample_ID}.${i}.vcf.gz" >> "${WORKDIR}/mutation/vcf/${sample_ID}.list"
+        echo "${WORKDIR}/mutation/vcf/raw/${sample_ID}.${i}.vcf.gz" >> "${WORKDIR}/mutation/vcf/raw/${sample_ID}.list"
     done
     gatk --java-options "-Xms2000m" MergeVcfs \
-        --INPUT "${WORKDIR}/mutation/vcf/${sample_ID}.list" \
-        --OUTPUT "${WORKDIR}/mutation/vcf/${sample_ID}.vcf.gz" && \
-    rm "${WORKDIR}/mutation/vcf/${sample_ID}.list" \
-        "${WORKDIR}/mutation/vcf/${sample_ID}".*.vcf.gz \
-        "${WORKDIR}/mutation/vcf/${sample_ID}".*.vcf.tbi
+        --INPUT "${WORKDIR}/mutation/vcf/raw/${sample_ID}.list" \
+        --OUTPUT "${WORKDIR}/mutation/vcf/raw/${sample_ID}.vcf.gz" && \
+    rm "${WORKDIR}/mutation/vcf/raw/${sample_ID}.list" \
+        "${WORKDIR}/mutation/vcf/raw/${sample_ID}".*.vcf.gz \
+        "${WORKDIR}/mutation/vcf/raw/${sample_ID}".*.vcf.tbi
 
     # Variant filtering (almost instant)
     gatk VariantFiltration \
         -R "${WORKDIR}/annotation/GRCh38.primary_assembly.genome.fa" \
-        -V "${WORKDIR}/mutation/vcf/${sample_ID}.vcf.gz" \
+        -V "${WORKDIR}/mutation/vcf/raw/${sample_ID}.vcf.gz" \
         -O "${WORKDIR}/mutation/vcf/filtered/${sample_ID}.vcf.gz" \
         --window 35 \
         --cluster 3 \
@@ -173,7 +175,7 @@ for sample_ID in $sample_IDs; do
     gatk Funcotator \
         -R "${WORKDIR}/annotation/GRCh38.primary_assembly.genome.fa" \
         -V "${WORKDIR}/mutation/vcf/filtered/${sample_ID}.vcf.gz" \
-        -O "${WORKDIR}/mutation/vcf/${sample_ID}.annot.vcf" \
+        -O "${WORKDIR}/mutation/vcf/annotated/${sample_ID}.vcf" \
         --output-file-format "VCF" \
         --data-sources-path "${WORKDIR}/mutation/annotation/funcotator_dataSources.v1.7.20200521s/" \
         --ref-version "hg38"
