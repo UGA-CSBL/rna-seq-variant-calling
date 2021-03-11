@@ -10,12 +10,13 @@
 ##########################################
 WORKDIR="/mnt/data/mutation"
 
-mkdir -p "${WORKDIR}/annotation/exon_intervals"
-mkdir -p "${WORKDIR}/bam/filtered/dedup"
-mkdir -p "${WORKDIR}/bam/filtered/split_n_cigar"
-mkdir -p "${WORKDIR}/bam/filtered/qc_recal"
-mkdir -p "${WORKDIR}/mutation/vcf/filtered"
-mkdir -p "${WORKDIR}/mutation/vcf/annotation"
+mkdir -p \
+    "${WORKDIR}/annotation/exon_intervals" \
+    "${WORKDIR}/bam/filtered/dedup" \
+    "${WORKDIR}/bam/filtered/split_n_cigar" \
+    "${WORKDIR}/bam/filtered/qc_recal" \
+    "${WORKDIR}/mutation/vcf/filtered" \
+    "${WORKDIR}/mutation/vcf/annotation"
 
 # Prepare reference dictionary and index files
 # https://gatk.broadinstitute.org/hc/en-us/articles/360035531652-FASTA-Reference-genome-format
@@ -31,7 +32,7 @@ if [ ! -f "${WORKDIR}/annotation/GRCh38.primary_assembly.genome.fa.fai" ]; then
 fi
 
 # Download known polymorphic sites (VCF) and generate its index file
-if [ ! -f "${WORKDIR}/annotation/dbSNP_common_all.vcf.gz" ]; then
+if [ ! -f "${WORKDIR}/annotation/dbSNP_common_all_chr.vcf" ]; then
     wget -O "${WORKDIR}/annotation/dbSNP_common_all.vcf.gz" \
         https://ftp.ncbi.nih.gov/snp/organisms/human_9606/VCF/common_all_20180418.vcf.gz && \
     gunzip -d "${WORKDIR}/annotation/dbSNP_common_all.vcf.gz" && \
@@ -66,12 +67,12 @@ if [ ! -f "${WORKDIR}/annotation/gencode_human.gtf.exons.interval_list" ]; then
 fi
 
 # Download data source for functional annotation of variants
-if [ ! -d "${WORKDIR}/mutation/annotation/funcotator_dataSources.v1.7.20200521g" ]; then
+if [ ! -d "${WORKDIR}/mutation/annotation/funcotator_dataSources.v1.7.20200521s" ]; then
     gatk FuncotatorDataSourceDownloader \
-        --germline \
+        --somatic \
         --validate-integrity \
         --extract-after-download \
-        -O "${WORKDIR}/mutation/annotation/germline_annot.tar.gz"
+        -O "${WORKDIR}/mutation/annotation/somatic_annot.tar.gz"
 fi
 
 
@@ -102,8 +103,8 @@ for sample_ID in $sample_IDs; do
         -I "${WORKDIR}/bam/filtered/dedup/${sample_ID}_rg.bam" \
         -O "${WORKDIR}/bam/filtered/dedup/${sample_ID}.bam" \
         -M "${WORKDIR}/bam/filtered/dedup/${sample_ID}.metrics" \
-        --CREATE_INDEX true \
-        --VALIDATION_STRINGENCY SLIENT \
+        --create-output-bam-index true \
+        --read-validation-stringency SILENT \
         --conf 'spark.executor.cores=20' && \
     rm "${WORKDIR}/bam/filtered/dedup/${sample_ID}_rg.bam"
 
@@ -151,8 +152,9 @@ for sample_ID in $sample_IDs; do
     gatk --java-options "-Xms2000m" MergeVcfs \
         --INPUT "${WORKDIR}/mutation/vcf/${sample_ID}.list" \
         --OUTPUT "${WORKDIR}/mutation/vcf/${sample_ID}.vcf.gz" && \
-    rm "${WORKDIR}/mutation/vcf/${sample_ID}.list" && \
-    rm "${WORKDIR}/mutation/vcf/${sample_ID}".*.vcf.gz
+    rm "${WORKDIR}/mutation/vcf/${sample_ID}.list" \
+        "${WORKDIR}/mutation/vcf/${sample_ID}".*.vcf.gz \
+        "${WORKDIR}/mutation/vcf/${sample_ID}".*.vcf.tbi
 
     # Variant filtering (almost instant)
     gatk VariantFiltration \
@@ -173,6 +175,6 @@ for sample_ID in $sample_IDs; do
         -V "${WORKDIR}/mutation/vcf/filtered/${sample_ID}.vcf.gz" \
         -O "${WORKDIR}/mutation/vcf/${sample_ID}.annot.vcf" \
         --output-file-format "VCF" \
-        --data-sources-path "${WORKDIR}/mutation/annotation/funcotator_dataSources.v1.7.20200521g/" \
+        --data-sources-path "${WORKDIR}/mutation/annotation/funcotator_dataSources.v1.7.20200521s/" \
         --ref-version "hg38"
 done
