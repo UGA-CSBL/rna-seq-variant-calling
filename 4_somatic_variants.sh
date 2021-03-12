@@ -156,7 +156,7 @@ for sample_ID in $sample_IDs; do
         --OUTPUT "${WORKDIR}/mutation/vcf/raw/${sample_ID}.vcf.gz" && \
     rm "${WORKDIR}/mutation/vcf/raw/${sample_ID}.list" \
         "${WORKDIR}/mutation/vcf/raw/${sample_ID}".*.vcf.gz \
-        "${WORKDIR}/mutation/vcf/raw/${sample_ID}".*.vcf.tbi
+        "${WORKDIR}/mutation/vcf/raw/${sample_ID}".*.vcf.gz.tbi
 
     # Variant filtering (almost instant)
     gatk VariantFiltration \
